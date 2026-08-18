@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confronto Prezzi Spesa</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f4f6f8; margin: 0; padding: 15px; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #2c3e50; margin-top: 0; }
+        label { font-weight: bold; display: block; margin-top: 10px; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        button { background: #27ae60; color: white; font-weight: bold; border: none; margin-top: 15px; cursor: pointer; }
+        button:hover { background: #219150; }
+        .stats-card { background: #e8f8f5; border: 2px solid #2ecc71; border-radius: 8px; padding: 12px; margin: 15px 0; text-align: center; }
+        .stats-card strong { color: #27ae60; font-size: 1.2em; }
+        .item { background: #eef2f5; padding: 10px; margin-top: 10px; border-radius: 6px; border-left: 5px solid #3498db; position: relative; }
+        .item-title { font-weight: bold; text-transform: capitalize; }
+        .unit-price { color: #e67e22; font-weight: bold; }
+        .delete-btn { position: absolute; right: 10px; top: 10px; background: #e74c3c; color: white; width: auto; padding: 5px 8px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Trova Convenienza</h1>
+    
+    <label>Nome Prodotto</label>
+    <input type="text" id="nome" placeholder="Es. Pasta, Latte, Caffè...">
+
+    <label>Supermercato / Marca</label>
+    <input type="text" id="negozio" placeholder="Es. Coop, Barilla...">
+
+    <label>Prezzo (€)</label>
+    <input type="number" step="0.01" id="prezzo" placeholder="2.49">
+
+    <label>Quantità totale</label>
+    <input type="number" step="0.01" id="quantita" placeholder="500">
+
+    <label>Unità di misura</label>
+    <select id="unita">
+        <option value="g">Grammi (g)</option>
+        <option value="kg">Chilogrammi (kg)</option>
+        <option value="ml">Millilitri (ml)</option>
+        <option value="l">Litri (l)</option>
+        <option value="pz">Pezzi / Unità</option>
+    </select>
+
+    <button onclick="aggiungiProdotto()">Salva e Calcola</button>
+
+    <h2>Storico Acquisti</h2>
+    <input type="text" id="ricerca" onkeyup="mostraProdotti()" placeholder="Cerca prodotto (es. pasta)...">
+    
+    <div id="media-container"></div>
+    <div id="lista"></div>
+</div>
+
+<script>
+    let prodotti = JSON.parse(localStorage.getItem('prodotti_spesa')) || [];
+
+    function aggiungiProdotto() {
+        const nome = document.getElementById('nome').value.trim().toLowerCase();
+        const negozio = document.getElementById('negozio').value.trim();
+        const prezzo = parseFloat(document.getElementById('prezzo').value);
+        const quantita = parseFloat(document.getElementById('quantita').value);
+        const unita = document.getElementById('unita').value;
+
+        if (!nome || isNaN(prezzo) || isNaN(quantita)) {
+            alert('Compila tutti i campi correttamente.');
+            return;
+        }
+
+        let prezzoUnitario = 0;
+        let etichettaUnita = '';
+
+        if (unita === 'g') {
+            prezzoUnitario = (prezzo / quantita) * 1000;
+            etichettaUnita = '€/kg';
+        } else if (unita === 'kg' || unita === 'l' || unita === 'pz') {
+            prezzoUnitario = prezzo / quantita;
+            etichettaUnita = `€/${unita}`;
+        } else if (unita === 'ml') {
+            prezzoUnitario = (prezzo / quantita) * 1000;
+            etichettaUnita = '€/L';
+        }
+
+        const nuovo = {
+            id: Date.now(),
+            nome,
+            negozio,
+            prezzo,
+            quantita,
+            unita,
+            prezzoUnitario: parseFloat(prezzoUnitario.toFixed(2)),
+            etichettaUnita,
+            data: new Date().toLocaleDateString('it-IT')
+        };
+
+        prodotti.unshift(nuovo);
+        localStorage.setItem('prodotti_spesa', JSON.stringify(prodotti));
+        
+        document.getElementById('prezzo').value = '';
+        document.getElementById('quantita').value = '';
+        
+        mostraProdotti();
+    }
+
+    function eliminaProdotto(id) {
+        prodotti = prodotti.filter(p => p.id !== id);
+        localStorage.setItem('prodotti_spesa', JSON.stringify(prodotti));
+        mostraProdotti();
+    }
+
+    function mostraProdotti() {
+        const lista = document.getElementById('lista');
+        const mediaContainer = document.getElementById('media-container');
+        const filtro = document.getElementById('ricerca').value.toLowerCase().trim();
+        
+        lista.innerHTML = '';
+        mediaContainer.innerHTML = '';
+
+        const filtrati = prodotti.filter(p => p.nome.includes(filtro));
+
+        // Calcolo della media se c'è una ricerca attiva e ci sono risultati
+        if (filtro !== '' && filtrati.length > 0) {
+            const sommaPrezziUnitari = filtrati.reduce((acc, p) => acc + p.prezzoUnitario, 0);
+            const media = (sommaPrezziUnitari / filtrati.length).toFixed(2);
+            const unitaMisura = filtrati[0].etichettaUnita;
+
+            mediaContainer.innerHTML = `
+                <div class="stats-card">
+                    <div>Risultati trovati: <strong>${filtrati.length}</strong></div>
+                    <div>Prezzo medio unitario: <strong>€${media} ${unitaMisura}</strong></div>
+                </div>
+            `;
+        }
+
+        filtrati.forEach(p => {
+            lista.innerHTML += `
+                <div class="item">
+                    <button class="delete-btn" onclick="eliminaProdotto(${p.id})">X</button>
+                    <div class="item-title">${p.nome} (${p.negozio || 'N/D'})</div>
+                    <div>Prezzo pagato: €${p.prezzo.toFixed(2)} (${p.quantita} ${p.unita})</div>
+                    <div class="unit-price">Prezzo unitario: €${p.prezzoUnitario.toFixed(2)} ${p.etichettaUnita}</div>
+                    <small>Data: ${p.data}</small>
+                </div>
+            `;
+        });
+    }
+
+    mostraProdotti();
+</script>
+
+</body>
+</html>
